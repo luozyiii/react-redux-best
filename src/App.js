@@ -1,6 +1,20 @@
 import React, {useState, useContext} from 'react';
 import './App.css';
 
+const reducer = (state, {type, payload}) => {
+  if(type === 'updateUser') {
+    return {
+      ...state,
+      user: {
+        ...state.user,
+        ...payload
+      }
+    }
+  }else {
+    return state
+  }
+}
+
 const appContext = React.createContext(null);
 const App = () => {
   const [appState, setAppState] = useState({
@@ -28,14 +42,14 @@ const User = () => {
   return <div>User: {contextValue.appState.user.name}</div>
 };
 const UserModifier = () => {
-  const contextValue = useContext(appContext);
+  const { appState, setAppState } = useContext(appContext);
   const onChange = (e) => {
-    contextValue.appState.user.name = e.target.value;
-    contextValue.setAppState({...contextValue.appState})
+    const newState = reducer(appState, {type: 'updateUser', payload:{name: e.target.value}})
+    setAppState(newState)
   }
 
   return <div>
-    <input value={contextValue.appState.user.name} onChange={onChange}/>
+    <input value={appState.user.name} onChange={onChange}/>
   </div>
 };
 
