@@ -1,26 +1,55 @@
 import React, { useState, useEffect } from "react";
+let state = undefined;
+let reducer = undefined;
+let listeners = []; // 监听者
+
+const setState = (newState) => {
+  state = newState;
+  listeners.map((fn) => fn(state));
+};
 
 const store = {
-  state: undefined,
-  reducer: undefined,
-  setState(newState) {
-    store.state = newState;
-    store.listeners.map((fn) => fn(store.state));
+  getState() {
+    return state;
   },
-  listeners: [], // 监听者
+  dispatch: (action) => {
+    setState(reducer(state, action));
+  },
   subscribe(fn) {
     // 订阅
-    store.listeners.push(fn);
+    listeners.push(fn);
     return () => {
-      let index = store.listeners.indexOf(fn);
-      store.listeners.splice(index, 1);
+      let index = listeners.indexOf(fn);
+      listeners.splice(index, 1);
     };
   },
 };
 
-export const createStore = (reducer, initState) => {
-  store.state = initState;
-  store.reducer = reducer;
+let dispatch = store.dispatch;
+let prevDispatch = dispatch;
+dispatch = (action) => {
+  if (action instanceof Function) {
+    action(dispatch);
+  } else {
+    prevDispatch(action);
+  }
+};
+
+// 支持 payload 是promise
+let prevDispatch2 = dispatch;
+dispatch = (action) => {
+  if (action.payload instanceof Promise) {
+    action.payload.then((data) => {
+      dispatch({ ...action, payload: data });
+    });
+  } else {
+    prevDispatch2(action);
+  }
+};
+
+export const createStore = (_reducer, initState) => {
+  state = initState;
+  reducer = _reducer;
   return store;
 };
 
@@ -38,10 +67,6 @@ const changed = (oldState, newState) => {
 // react-redux 库提供的connect
 export const connect = (selector, mapDispatchToProps) => (Component) => {
   return (props) => {
-    const { state, setState, reducer } = store;
-    const dispatch = (action) => {
-      setState(reducer(state, action));
-    };
     const [, update] = useState({});
     const data = selector ? selector(state) : { state };
     const dispatcher = mapDispatchToProps
@@ -51,9 +76,7 @@ export const connect = (selector, mapDispatchToProps) => (Component) => {
     useEffect(
       () =>
         store.subscribe(() => {
-          const newData = selector
-            ? selector(store.state)
-            : { state: store.state };
+          const newData = selector ? selector(state) : { state };
           if (changed(data, newData)) {
             console.log("update");
             update({});

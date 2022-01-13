@@ -73,17 +73,40 @@ const User = connectToUser(({ user }) => {
   return <div>User: {user.name}</div>;
 });
 
-const UserModifier = connectToUser(({ updateUser, user, children }) => {
-  console.log("UserModifier执行了：" + Math.random());
-  const onChange = (e) => {
-    updateUser({ name: e.target.value });
-  };
-  return (
-    <div>
-      {children}
-      <input value={user.name} onChange={onChange} />
-    </div>
-  );
-});
+// Redux 支持函数 action
+const fetchUser = (dispatch) => {
+  setTimeout(() => {
+    dispatch({ type: "updateUser", payload: { name: "function明" } });
+  }, 2000);
+};
+
+// Redux 支持 promise action
+const fetchPromise = () => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({ name: "promise明" });
+    }, 2000);
+  });
+};
+
+const UserModifier = connectToUser(
+  ({ updateUser, user, children, dispatch }) => {
+    console.log("UserModifier执行了：" + Math.random());
+    const onChange = (e) => {
+      updateUser({ name: e.target.value });
+    };
+    const handleClick = (e) => {
+      dispatch(fetchUser);
+      // dispatch({ type: "updateUser", payload: fetchPromise() });
+    };
+    return (
+      <div>
+        {children}
+        <input value={user.name} onChange={onChange} />
+        <button onClick={handleClick}>异步获取user</button>
+      </div>
+    );
+  }
+);
 
 export default App;
