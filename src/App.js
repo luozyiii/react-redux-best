@@ -1,14 +1,37 @@
 import React from "react";
-import { appContext, store, connect } from "./redux";
+import { Provider, createStore, connect } from "./redux";
+import { connectToUser } from "./connecters/connectToUser";
 import "./App.css";
+
+const initState = {
+  user: { name: "小明", age: 18 },
+  group: { name: "前端组" },
+};
+
+const reducer = (state, { type, payload }) => {
+  if (type === "updateUser") {
+    return {
+      ...state,
+      user: {
+        ...state.user,
+        ...payload,
+      },
+    };
+  } else {
+    return state;
+  }
+};
+
+const store = createStore(reducer, initState);
 
 const App = () => {
   return (
-    <appContext.Provider value={store}>
+    <Provider store={store}>
       <A />
       <B />
       <C />
-    </appContext.Provider>
+      <D />
+    </Provider>
   );
 };
 
@@ -33,20 +56,32 @@ const C = () => {
   console.log("三儿子执行了：" + Math.random());
   return <section>三儿子</section>;
 };
-const User = connect(({ state }) => {
-  console.log("User执行了：" + Math.random());
-  return <div>User: {state.user.name}</div>;
+
+const D = connect((state) => {
+  return { group: state.group };
+})(({ group }) => {
+  console.log("四儿子执行了：" + Math.random());
+  return (
+    <section>
+      四儿子<div>{group.name}</div>
+    </section>
+  );
 });
 
-const UserModifier = connect(({ dispatch, state, children }) => {
+const User = connectToUser(({ user }) => {
+  console.log("User执行了：" + Math.random());
+  return <div>User: {user.name}</div>;
+});
+
+const UserModifier = connectToUser(({ updateUser, user, children }) => {
   console.log("UserModifier执行了：" + Math.random());
   const onChange = (e) => {
-    dispatch({ type: "updateUser", payload: { name: e.target.value } });
+    updateUser({ name: e.target.value });
   };
   return (
     <div>
       {children}
-      <input value={state.user.name} onChange={onChange} />
+      <input value={user.name} onChange={onChange} />
     </div>
   );
 });

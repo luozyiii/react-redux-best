@@ -2,6 +2,10 @@
 
 从 0 开始学习 redux
 
+```
+redux解决的问题就是组件和data的连接
+```
+
 ## 使用上下文读写 state
 
 ```js
@@ -138,6 +142,12 @@ export default App;
 ```
 
 ## dispatch - 规范 setState 的流程
+
+```
+reducer(state, action)
+initState => newState
+Action => 变动的描述
+```
 
 ```js
 import React, { useState, useContext } from "react";
@@ -416,4 +426,268 @@ export default App;
 ```
 src/redux
 src/App.js
+```
+
+## Selector - 来自 React-Redux 库
+
+```js
+// src/App.js
+const User = connect((state) => {
+  return { user: state.user };
+})(({ user }) => {
+  console.log("User执行了：" + Math.random());
+  return <div>User: {user.name}</div>;
+});
+
+// src/redux
+export const connect = (selector) => (Component) => {
+  return (props) => {
+    const { state, setState } = useContext(appContext);
+    const [, update] = useState({});
+    const data = selector ? selector(state) : { state };
+    // 只订阅一次
+    useEffect(() => {
+      store.subscribe(() => {
+        update({});
+      });
+    }, []);
+    const dispatch = (action) => {
+      setState(reducer(state, action));
+    };
+    return <Component {...props} {...data} dispatch={dispatch} />;
+  };
+};
+```
+
+## 精准渲染 - 组件只在自己数据变化时 render
+
+我只更新 user,D 组件不应该被渲染
+
+```js
+// src/redux
+state: {
+  user: {
+    name: "小明",
+    age: 18,
+  },
+  group: { name: "前端组" }, // +
+},
+
+// 对象浅比较
+const changed = (oldState, newState) => {
+  let changeed = false;
+  for (let key in oldState) {
+    if (oldState[key] !== newState[key]) {
+      changeed = true;
+    }
+  }
+  return changeed;
+};
+
+// react-redux 库提供的connect
+export const connect = (selector) => (Component) => {
+  return (props) => {
+    const { state, setState } = useContext(appContext);
+    const [, update] = useState({});
+    const data = selector ? selector(state) : { state };
+    // 只订阅一次
+    useEffect(
+      () =>
+        store.subscribe(() => {
+          const newData = selector
+            ? selector(store.state)
+            : { state: store.state };
+          if (changed(data, newData)) {
+            console.log("update");
+            update({});
+          }
+        }),
+      // 注意：这里最好取消订阅，否则在 selector 变化时会出现重复订阅
+      [selector]
+    );
+    const dispatch = (action) => {
+      setState(reducer(state, action));
+    };
+    return <Component {...props} {...data} dispatch={dispatch} />;
+  };
+};
+
+// src/App.js
+const D = connect((state) => {
+  return { group: state.group };
+})(({ group }) => {
+  console.log("四儿子执行了：" + Math.random());
+  return (
+    <section>
+      四儿子<div>{group.name}</div>
+    </section>
+  );
+});
+```
+
+## mapDispatchToProps - connect(selector, \_)(组件)
+
+\_ ==> mapDispatchToProps: connect 的第二个参数
+
+```js
+// src/App.js
+const UserModifier = connect(null, (dispatch) => {
+  return {
+    updateUser: (attrs) => dispatch({ type: "updateUser", payload: attrs }),
+  };
+})(({ updateUser, state, children }) => {
+  console.log("UserModifier执行了：" + Math.random());
+  const onChange = (e) => {
+    updateUser({ name: e.target.value });
+  };
+  return (
+    <div>
+      {children}
+      <input value={state.user.name} onChange={onChange} />
+    </div>
+  );
+});
+
+// src/redux
+export const connect = (selector, mapDispatchToProps) => (Component) => {
+  return (props) => {
+    const { state, setState } = useContext(appContext);
+    const dispatch = (action) => {
+      setState(reducer(state, action));
+    };
+    const [, update] = useState({});
+    const data = selector ? selector(state) : { state };
+    const dispatcher = mapDispatchToProps
+      ? mapDispatchToProps(dispatch)
+      : { dispatch };
+    // 只订阅一次
+    useEffect(
+      () =>
+        store.subscribe(() => {
+          const newData = selector
+            ? selector(store.state)
+            : { state: store.state };
+          if (changed(data, newData)) {
+            console.log("update");
+            update({});
+          }
+        }),
+      // 注意：这里最好取消订阅，否则在 selector 变化时会出现重复订阅
+      [selector]
+    );
+    return <Component {...props} {...data} {...dispatcher} />;
+  };
+};
+```
+
+## connect 的意义
+
+connect(MapStateToProps, MapDispatchToProps)(组件)
+
+- MapStateToProps: 封装读
+- MapDispatchToProps： 封装写
+- connect: 封装读写
+
+```js
+// src/App.js
+const User = connectToUser(({ user }) => {
+  console.log("User执行了：" + Math.random());
+  return <div>User: {user.name}</div>;
+});
+
+const UserModifier = connectToUser(({ updateUser, user, children }) => {
+  console.log("UserModifier执行了：" + Math.random());
+  const onChange = (e) => {
+    updateUser({ name: e.target.value });
+  };
+  return (
+    <div>
+      {children}
+      <input value={user.name} onChange={onChange} />
+    </div>
+  );
+});
+
+// src/connecters/connectToUser
+import { connect } from "../redux";
+
+const userSelector = (state) => {
+  return { user: state.user };
+};
+
+const userDispatcher = (dispatch) => {
+  return {
+    updateUser: (attrs) => dispatch({ type: "updateUser", payload: attrs }),
+  };
+};
+
+export const connectToUser = connect(userSelector, userDispatcher);
+```
+
+## CreateStore(reducer, initState) - 创建 Store
+
+```js
+// src/App.js
+import { Provider, createStore, connect } from "./redux";
+
+const initState = {
+  user: { name: "小明", age: 18 },
+  group: { name: "前端组" },
+};
+
+const reducer = (state, { type, payload }) => {
+  if (type === "updateUser") {
+    return {
+      ...state,
+      user: {
+        ...state.user,
+        ...payload,
+      },
+    };
+  } else {
+    return state;
+  }
+};
+
+const store = createStore(reducer, initState);
+
+const App = () => {
+  return (
+    <Provider store={store}>
+      <A />
+      <B />
+      <C />
+      <D />
+    </Provider>
+  );
+};
+
+// src/redux
+const store = {
+  state: undefined,
+  reducer: undefined,
+  setState(newState) {
+    store.state = newState;
+    store.listeners.map((fn) => fn(store.state));
+  },
+  listeners: [], // 监听者
+  subscribe(fn) {
+    // 订阅
+    store.listeners.push(fn);
+    return () => {
+      let index = store.listeners.indexOf(fn);
+      store.listeners.splice(index, 1);
+    };
+  },
+};
+
+export const createStore = (reducer, initState) => {
+  store.state = initState;
+  store.reducer = reducer;
+  return store;
+};
+
+export const Provider = ({ store, children }) => {
+  return <appContext.Provider value={store}>{children}</appContext.Provider>;
+};
 ```
